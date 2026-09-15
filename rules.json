@@ -1,52 +1,33 @@
 {
-  "version": 1,
-  "activeProfile": "moderate",
+  "version": 2,
+  "engine": "model",
+  "activePolicy": "standard",
 
-  "profiles": {
-    "conservative": {
-      "description": "只放行只读命令",
-      "maxRiskLevel": "low",
-      "bashGroups": ["readonly"],
-      "tools": ["Read", "Glob", "Grep", "TodoRead", "TodoWrite", "Task"]
+  "policies": {
+    "strict": {
+      "description": "只放行明确只读语义的命令",
+      "maxRiskLevel": "low"
     },
-    "moderate": {
-      "description": "只读 + 常见安全开发操作（默认）",
-      "maxRiskLevel": "medium",
-      "bashGroups": ["readonly", "safework"],
-      "tools": ["Read", "Glob", "Grep", "TodoRead", "TodoWrite", "Task"],
-      "fileEdits": { "pathPolicy": "workspace-only" }
+    "standard": {
+      "description": "只读 + 常规开发操作（默认）",
+      "maxRiskLevel": "medium"
     }
   },
 
-  "argGuards": {
-    "node": ["-e", "--eval", "-p", "--print"],
-    "python": ["-c"],
-    "python3": ["-c"],
-    "find": ["-delete", "-exec*", "-ok*", "-fprint*", "-fls"],
-    "rg": ["--pre*"]
-  },
+  "judge": {
+    "model": "GLM-5.3-Flash",
+    "maxTokens": 512,
+    "temperature": 0,
+    "attempts": 4,
+    "perAttemptTimeoutMs": 15000,
+    "overallDeadlineMs": 25000,
+    "retryBackoffMs": 500,
 
-  "bashGroups": {
-    "readonly": [
-      "ls", "cat", "head", "tail", "wc", "grep", "rg", "find", "fd",
-      "which", "where", "file", "stat", "du", "df", "tree", "echo",
-      "pwd", "whoami", "date", "env", "printenv", "type",
-      "git status", "git diff", "git log", "git show", "git branch",
-      "git remote", "git tag", "git stash list", "git rev-parse",
-      "node --version", "npm ls", "npx --version",
-      "python --version", "pip list"
-    ],
-    "safework": [
-      "mkdir", "touch", "cp", "mv",
-      "git add", "git commit", "git checkout", "git switch", "git pull",
-      "git fetch", "git stash", "git restore", "git worktree",
-      "npm install", "npm ci", "npm test", "npm run",
-      "pnpm install", "pnpm test", "pnpm run",
-      "yarn install", "yarn test",
-      "node", "python", "pytest", "tsc", "eslint", "prettier",
-      "cargo build", "cargo test", "go build", "go test", "go vet",
-      "make"
-    ]
+    "cache": {
+      "enabled": true,
+      "ttlMs": 86400000,
+      "maxEntries": 500
+    }
   },
 
   "deny": {
@@ -70,9 +51,11 @@
     "tools": ["mcp__.*", "WebFetch", "WebSearch", "Agent", "SendMessage"]
   },
 
+  "tools": ["Read", "Glob", "Grep", "TodoRead", "TodoWrite", "Task"],
+
+  "fileEdits": { "pathPolicy": "workspace-only" },
+
   "guards": {
-    "maxRiskLevel": "medium",
-    "disabledWorkspaces": [],
-    "redirectPolicy": "workspace-only"
+    "disabledWorkspaces": []
   }
 }
