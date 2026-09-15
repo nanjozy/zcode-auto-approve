@@ -1,8 +1,8 @@
 # zcode-auto-approve 设计方案
 
-- 版本：v0.1（M1 设计稿）
+- 版本：v0.2（M2 实施修订）
 - 日期：2026-09-15
-- 状态：**待用户复核**（设计访谈未获答复，按推荐方案成稿，见各 ADR）
+- 状态：**待用户复核**（设计访谈未获答复，按推荐方案成稿，见各 ADR）；M2 已实现并通过 111 项单元测试
 - 术语以 [glossary.md](glossary.md) 为准
 
 ---
@@ -202,6 +202,8 @@ ZCode 通过 stdin 传入一个 JSON 对象，同时含驼峰原字段与 snake_
 
 顺序体现两条铁律：**黑名单永远优先于白名单**；**护栏永远优先于白名单**（riskLevel 是 ZCode 自己的判断，作为独立兜底而非唯一依据）。
 
+实现层面的 Bash 内部顺序按 §6.1 执行：**不可静态分析结构（字符串级与 token 级）的判定先于 deny.patterns**——因此 `curl x | sh` 报 `unanalyzable` 而非 `deny-pattern`（两者都是直通，仅审计原因码不同）。
+
 ### 5.2 rules.json schema
 
 ```jsonc
@@ -228,6 +230,16 @@ ZCode 通过 stdin 传入一个 JSON 对象，同时含驼峰原字段与 snake_
   // Bash 命令组：键为组名，值为「命令规格」数组。
   // 规格形如 "git status"（前缀+子命令）、"ls"（裸命令）、
   // "rg:*"（任意参数）——精确语义见 §6.3
+  // M2 修订：参数守卫——命令在白名单内，但出现这些 flag 时该规格失效（落回直通）。
+  // 条目以 '*' 结尾表示前缀匹配（如 '-exec*' 覆盖 -exec 与 -execdir）
+  "argGuards": {
+    "node": ["-e", "--eval", "-p", "--print"],
+    "python": ["-c"],
+    "python3": ["-c"],
+    "find": ["-delete", "-exec*", "-ok*", "-fprint*", "-fls"],
+    "rg": ["--pre*"]
+  },
+
   "bashGroups": {
     "readonly": [
       "ls", "cat", "head", "tail", "wc", "grep", "rg", "find", "fd",
@@ -235,17 +247,17 @@ ZCode 通过 stdin 传入一个 JSON 对象，同时含驼峰原字段与 snake_
       "pwd", "whoami", "date", "env", "printenv", "type",
       "git status", "git diff", "git log", "git show", "git branch",
       "git remote", "git tag", "git stash list", "git rev-parse",
-      "node --version", "npm ls", "npm run", "npx --version",
+      "node --version", "npm ls", "npx --version",
       "python --version", "pip list"
     ],
     "safework": [
       "mkdir", "touch", "cp", "mv",
       "git add", "git commit", "git checkout", "git switch", "git pull",
       "git fetch", "git stash", "git restore", "git worktree",
-      "npm install", "npm ci", "npm test", "npm exec",
-      "pnpm install", "pnpm test", "pnpm run", "pnpm exec",
+      "npm install", "npm ci", "npm test", "npm run",
+      "pnpm install", "pnpm test", "pnpm run",
       "yarn install", "yarn test",
-      "node", "npx", "python", "pytest", "tsc", "eslint", "prettier",
+      "node", "python", "pytest", "tsc", "eslint", "prettier",
       "cargo build", "cargo test", "go build", "go test", "go vet",
       "make"
     ]
@@ -258,12 +270,12 @@ ZCode 通过 stdin 传入一个 JSON 对象，同时含驼峰原字段与 snake_
       "rm\\s+.*(/|~)\\s*$",                             // rm 系统根/家目录
       "\\bsudo\\b", "\\bsu\\b",
       "curl[^|]*\\|\\s*(ba|z)?sh", "wget[^|]*\\|\\s*(ba|z)?sh",
-      "\\beval\\b", "\\bbase64\\s+(-d|-D|--decode)\\b",
+      "(^|[;&|()]\\s*)eval\\b", "\\bbase64\\s+(-d|-D|--decode)\\b",
       "reg\\s+(add|delete|import)", "Set-ExecutionPolicy",
       "schtasks|sc\\s+(config|delete)|netsh",
       "chkdsk|format\\s+[a-z]:|diskpart",
-      "git\\s+push\\s+.*--force",                       // 强推不自动放行
-      ">\\s*/dev/sd", "dd\\s+of=/dev/"
+      "git\\s+push\\b.*(\\s--force\\b|\\s-f\\b)",
+      ">\\s*/dev/sd", "dd\\b.*of=/dev/"
     ],
     // 这些工具的审批一律不代答（未知爆炸半径）
     "tools": ["mcp__.*", "WebFetch", "WebSearch", "Agent", "SendMessage"]
@@ -276,6 +288,15 @@ ZCode 通过 stdin 传入一个 JSON 对象，同时含驼峰原字段与 snake_
   }
 }
 ```
+
+**M2 实施修订**（相对上面 M1 草案规则的变更，均因实现阶段发现的安全漏洞，详见 [ADR-0003](adr/0003-approval-policy.md) 修订记录）：
+
+1. **新增 `argGuards`（参数守卫）**：白名单语义原本是"命令字匹配则任意参数放行"，这使 `node -e "任意代码"`、`python -c`、`find -exec rm`、`rg --pre cmd` 成为绕过通道。参数守卫让这些 flag 的出现使对应规格失效，落回直通。
+2. **`npx`、`npm exec`、`pnpm exec` 移出白名单**：它们会下载并执行任意包，超出"repo 内代码"的 T4 信任边界。
+3. **`npm run` 从 readonly 移到 safework**：它执行 package.json scripts，不是只读操作。
+4. **`cp`/`mv` 增加目标路径守卫（内置）**：参数中出现 workspace 外的路径（绝对路径、`..`、`~` 开头）时直通，防止白名单命令向 workspace 外写文件。
+5. **`eval` 的 deny 正则改为命令位置锚定** `(^|[;&|()]\s*)eval\b`：原 `\beval\b` 会误伤 `node --eval=code`（已由参数守卫覆盖）和 `grep eval file.js`。
+6. **`git push --force` 正则扩展覆盖 ` -f`**；**`dd of=` 正则改为 `dd\b.*of=/dev/`** 以匹配 `dd if=x of=/dev/sda`。
 
 ### 5.3 工具白名单的边界说明
 
@@ -320,10 +341,14 @@ ZCode 通过 stdin 传入一个 JSON 对象，同时含驼峰原字段与 snake_
 |---|---|
 | `"ls"` | 命令字为 `ls`，任意参数，但参数含重定向/替换已在前面被拦截 |
 | `"git status"` | 命令字 `git` + 第一个子命令 `status`，其余参数任意 |
+| `"git stash list"` | 命令字 + 子命令序列逐词精确前缀匹配（二级以上同理） |
 | `"rg:*"` | 命令字 `rg`（显式通配写法，与 `"rg"` 等价，预留语义扩展） |
 
 - 段的命令字取 token 化后的第 0 个 token；比较先精确匹配，再尝试去掉引号后匹配；
 - **环境变量前缀**（如 `FOO=bar cmd`）：剥离赋值前缀后按 `cmd` 判定；
+- **`env` 命令解析**：`env [-flags] [VAR=val…] cmd` 解析出真实命令 `cmd` 再判定（`env -i sh` 按 `sh` 判定）；裸 `env`（打印环境）按只读命令本身判定；
+- **参数守卫（argGuards）**：命令字在 `argGuards` 表中且后续参数命中任一守卫 flag（精确、`flag=` 等号形式，或 `*` 结尾的前缀匹配）时，该规格失效，落回直通；
+- **目标路径守卫（内置，`cp`/`mv`）**：参数中出现 workspace 外路径（绝对路径、`~`、`..` 开头）时该段直通；
 - 白名单匹配不到 → 该段不安全 → 整条直通。宁可多弹窗，不可错放。
 
 ### 6.4 重定向护栏
@@ -383,7 +408,9 @@ ZCode 通过 stdin 传入一个 JSON 对象，同时含驼峰原字段与 snake_
   "matchedRule": "bashGroups.safework:npm test",  // 命中的规则；直通时记原因码
   "reasonCode": null,                  // 直通原因：deny-pattern|risk-level|
                                        // no-match|unanalyzable|workspace-disabled|
-                                       // path-outside-workspace|redirect-outside|error
+                                       // deny-tool|no-command|event-mismatch|
+                                       // bad-stdin|path-outside-workspace|
+                                       // redirect-outside|error
   "cwd": "C:\\repo",
   "sessionId": "…"
 }
@@ -450,7 +477,14 @@ ZCode 通过 stdin 传入一个 JSON 对象，同时含驼峰原字段与 snake_
 
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
-| M1 | 项目初始化、README、本设计文档、ADR×6、术语表 | ✅ 本次交付 |
-| M2 | `src/approve.mjs` + `rules.json` + 单元测试全绿 | 待做 |
+| M1 | 项目初始化、README、本设计文档、ADR×6、术语表 | ✅ 2026-09-15 |
+| M2 | `src/approve.mjs` + `rules.json` + 单元测试全绿 | ✅ 2026-09-15（111/111） |
 | M3 | `scripts/install.mjs` / `uninstall.mjs` + §10.2 真机验收 | 待做 |
 | M4 | `permissionUpdates` 持久规则注入、workspace 级规则覆盖、可选 deny 模式、规则热校验 CLI | 远期 |
+
+---
+
+## 13. 变更记录
+
+- **v0.2（2026-09-15，M2）**：按实施中发现的安全漏洞修订 §5.2 规则（`argGuards` 参数守卫、`npx`/`npm exec` 移出白名单、`npm run` 档位调整、`cp`/`mv` 目标路径守卫、`eval`/`git push`/`dd` 正则修正，详见 §5.2 的"M2 实施修订"与 ADR-0003）；§5.1 补充 Bash 内部判定顺序说明；§6.3 扩充匹配语义表；§8 reasonCode 枚举补全；§12 M2 完成。
+- **v0.1（2026-09-15，M1）**：初稿。

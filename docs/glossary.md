@@ -38,4 +38,6 @@
 | **规则文件（rules.json）** | 外置的 JSON 规则配置，schema 见 [design.md §5](design.md#5-规则引擎设计)。 |
 | **审计日志（audit log）** | 每次放行/直通追加一行的 JSONL 文件，位于 `~/.zcode/zcode-auto-approve/audit/`。 |
 | **护栏（guard）** | 独立于模式匹配之外的准入条件：`riskLevel` 上限、workspace 禁用列表、重定向目标限制等。 |
+| **参数守卫（argGuards）** | M2 引入的规则层守卫：白名单命令的参数命中指定 flag（如 `node -e`、`find -exec`）时该规格失效、落回人工审批。`*` 结尾的条目为前缀匹配。 |
+| **目标路径守卫（destGuard）** | M2 引入的内置守卫：`cp`/`mv` 参数中出现 workspace 外路径（绝对路径、`~`、`..` 开头）时直通。 |
 | **ADR** | Architecture Decision Record，架构决策记录。一条决策一个文件，位于 `docs/adr/`。 |
