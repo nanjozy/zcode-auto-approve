@@ -1,0 +1,15 @@
+# 依赖
+node_modules/
+
+# 审计日志（运行时数据，不入库）
+*.jsonl
+audit/
+
+# 安装脚本产生的配置备份
+*.bak
+*.bak-*
+
+# 测试与临时产物
+coverage/
+*.log
+.tmp/
