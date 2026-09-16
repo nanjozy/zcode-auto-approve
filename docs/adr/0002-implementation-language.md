@@ -1,6 +1,6 @@
 # ADR-0002：实现语言与调用方式——Node.js 单文件 + `type: "process"`
 
-- 状态：Accepted（默认采用推荐方案，待用户复核）
+- 状态：Accepted（默认采用推荐方案，待用户复核）；注记（2026-09-16）：注册项的**解释器来源**已由本 ADR 的 fnm node 绝对路径演进为 ZCode.exe（ELECTRON_RUN_AS_NODE）优先、fnm node 兜底，见 [ADR-0009](0009-hook-runtime-zcode-exe.md)；单文件 + `type: "process"` + 绝对路径原则不变。
 - 日期：2026-09-15
 
 ## 背景

@@ -17,8 +17,10 @@
 | **exit code 2** | hook 的拦截语义。本项目永不使用（ADR-0005）。 |
 | **`permissionUpdates`** | 高级字段，可持久化放行规则进 ZCode 权限系统。M4 再评估。 |
 | **fnm** | 本机 Node 版本管理器。GUI 子进程 PATH 可能无 node，安装时须解析绝对路径（ADR-0002）。 |
+| **electron-node** | ZCode 桌面端（Electron 41.0.3）内嵌的 Node 运行时（实测 node 24.14.0）。ZCode 不附带独立 node.exe，但 `ELECTRON_RUN_AS_NODE=1 ZCode.exe` 可作为纯 node 调用（ADR-0009）。 |
+| **node 来源回退** | 安装时的运行时选择：ZCode.exe 验证（版本探针 + deny-path 冒烟）通过则优先采用，否则回退 fnm node 绝对路径；`ZAA_NODE_SOURCE=node` 强制回退（ADR-0009）。 |
 
-## v0.3 模型判定（当前架构）
+## 模型判定（当前架构）
 
 | 术语 | 含义 |
 |---|---|

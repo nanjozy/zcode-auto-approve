@@ -1,6 +1,6 @@
 # zcode-auto-approve 设计方案
 
-- 版本：v0.3（模型判定架构）
+- 版本：v0.4（模型判定架构 + hook 运行时 ZCode.exe，ADR-0009）
 - 日期：2026-09-15
 - 状态：**已经两轮设计访谈确认**（纯模型判定 + 最小安全网，见 ADR-0007/0008）；实现通过单元测试（`node --test`）+ 真实 API 冒烟
 - 术语以 [glossary.md](glossary.md) 为准
@@ -33,7 +33,8 @@ ZCode 在执行有副作用的工具调用（`Bash`、`Write`、`Edit` 等）前
 
 - **v0.1（M1）**：纯规则设计稿。
 - **v0.2（M2）**：纯规则实现（白名单 + argGuards + 复合命令逐段分析），111 项测试。
-- **v0.3（当前）**：应用户要求改为**模型判定**。M2 的白名单/argGuards/复合命令分析退出判定路径；deny 正则降级为模型 approve 之上的**安全网**；分词器保留用于安全网分段。历史细节见文末变更记录、ADR-0007「历史决策」小节（ADR-0003/0006 原文已并入）与 git 历史。
+- **v0.3**：应用户要求改为**模型判定**。M2 的白名单/argGuards/复合命令分析退出判定路径；deny 正则降级为模型 approve 之上的**安全网**；分词器保留用于安全网分段。历史细节见文末变更记录、ADR-0007「历史决策」小节（ADR-0003/0006 原文已并入）与 git 历史。
+- **v0.4（当前）**：hook 运行时来源切换为 ZCode.exe（ELECTRON_RUN_AS_NODE）优先、fnm node 兜底（ADR-0009），判定架构不变。
 
 ---
 
@@ -43,6 +44,7 @@ ZCode 在执行有副作用的工具调用（`Bash`、`Write`、`Edit` 等）前
 - **模型通道**（实测，v0.3）：本机无 headless zcode CLI；`~/.zcode/v2/config.json` 中 `builtin:bigmodel-coding-plan`（enabled）提供 Anthropic messages 兼容端点 `https://open.bigmodel.cn/api/anthropic/v1/messages` 与 API key，模型 GLM-5.3/GLM-5.3-Flash。Node 22 自带 fetch。
 - **实测延迟**：GLM-5.3-Flash 判定 p50 ≈ 3s，慢例 ≈ 13.5s（见 §11 预算讨论）。
 - **本机现状**：`~/.zcode/cli/config.json` 不存在；无插件注册 `PermissionRequest` hook，无冲突。
+- **ZCode 自身运行时**（实测，v0.4）：桌面端为 Electron 41.0.3，不附带独立 node.exe；`ELECTRON_RUN_AS_NODE=1 ZCode.exe` 可作为 node 24.14.0 运行（fuse 未关闭，延迟比独立 node 约 +50ms/次）；ZCode 内部即以 `env: {ELECTRON_RUN_AS_NODE: "1"}` 派生进程；ZCode.exe 经 electron-updater 原位更新、安装路径稳定。hook 运行时来源见 ADR-0009。
 
 ---
 
@@ -119,8 +121,9 @@ ZCode 在执行有副作用的工具调用（`Bash`、`Write`、`Edit` 等）前
           "hooks": [
             {
               "type": "process",
-              "command": "<安装时解析的 node 绝对路径>",
+              "command": "<v0.4：ZCode.exe 绝对路径（验证通过时）或 node 绝对路径>",
               "args": ["<仓库绝对路径>\\src\\approve.mjs"],
+              "env": { "ELECTRON_RUN_AS_NODE": "1" },   // 仅 ZCode.exe 路线携带（ADR-0009）
               "timeoutMs": 30000,          // 覆盖模型 25s 总预算 + 余量
               "statusMessage": "auto-approve：模型审批中"
             }
@@ -255,7 +258,9 @@ reasonCode 枚举：`deny-pattern` | `risk-level` | `deny-tool` | `workspace-dis
 
 ## 9. 安装与卸载
 
-同 v0.2（M3 交付）：安装器解析 node 绝对路径、备份并写入 §4.3 结构（`timeoutMs: 30000`）；改 rules.json / prompt 即时生效（每次 hook 都是新进程），缓存键含规则指纹相关字段。升级 node 版本（fnm 切换）后需重跑 install。
+安装器（ADR-0009 运行时选择）：`ZAA_NODE_SOURCE=node` 强制 fnm node；否则定位 ZCode.exe（env `ZAA_ELECTRON` > 默认安装路径）并验证——run-as-node 版本探针 + deny-path 冒烟（不产生模型调用），通过则注册 `command: ZCode.exe` + `env: {ELECTRON_RUN_AS_NODE: "1"}`，任一步失败回退 node 绝对路径并打印原因。两种形态均解析绝对路径、备份原配置（`config.json.bak-<时间戳>`）、幂等原位更新、检测其他配置型 hook；卸载按 args 识别、通吃两种形态。改 rules.json / prompt 即时生效（每次 hook 都是新进程），缓存键含规则指纹相关字段。
+
+失效与回退：ZCode 更新关闭 run-as-node（fuse）→ 重跑 install 自动验证并回退；若 env 字段被 hook 派生器忽略（症状：审批时弹异常窗口），先重跑 install，仍不行用 `ZAA_NODE_SOURCE=node node scripts/install.mjs` 强制回退。升级 node 版本（fnm）只影响 node 兜底路线。
 
 ---
 
@@ -305,12 +310,14 @@ reasonCode 枚举：`deny-pattern` | `risk-level` | `deny-tool` | `workspace-dis
 | M2 | 纯规则引擎 + 111 项测试 | ✅ 2026-09-15（commit d04b2fd） |
 | M2.5 | **模型判定架构 v0.3**：模型管线、安全网、缓存、重试、测试重写、真实 API 冒烟 | ✅ 2026-09-15 |
 | M3 | `scripts/install.mjs` / `uninstall.mjs`（备份/幂等/他人注册保护，10 项离线测试）+ 真实安装完成；**真机验收（§10.2）待用户重启 ZCode 后执行** | ✅ 2026-09-15（安装部分） |
+| v0.4 | **hook 运行时去 Node 依赖**：ZCode.exe（ELECTRON_RUN_AS_NODE）优先、fnm node 兜底（ADR-0009） | ✅ 2026-09-16 |
 | M4 | `permissionUpdates` 持久规则注入、workspace 级覆盖、可选 deny 模式 | 远期 |
 
 ---
 
 ## 13. 变更记录
 
+- **v0.4（2026-09-16，ADR-0009）**：hook 运行时来源切换——安装器优先采用 ZCode.exe（`ELECTRON_RUN_AS_NODE=1`，内嵌 node 24.14.0；fuse 实测未关、启动延迟 +50ms 可忽略、deny-path 冒烟通过），注册项新增 `env` 字段；验证不过或未找到 ZCode.exe 时回退 fnm node 绝对路径（ADR-0002 形态）；`ZAA_NODE_SOURCE=node` 为文档化强制回退。卸载匹配不变（按 args）。风险（非承诺通道、env 透传未证实）与回退语义见 ADR-0009。
 - **v0.3.2（2026-09-16，文档去冗）**：ADR-0003/0006 要点压缩并入 ADR-0007「历史决策」小节后删除原文件；术语表移除 M2 历史术语；README 瘦身为入口页，架构/安装/安全细节以本文档为唯一来源；修正各文档指向旧章节号的失效引用；当前测试数不再写死（deny 正则测试按 rules.json 模式数动态生成，数字随规则漂移），统一表述为"全部测试通过（`node --test`）"。
 - **v0.3.1（2026-09-15，M3 安装器）**：交付 `scripts/install.mjs` / `uninstall.mjs`（§9 落地：node 绝对路径、时间戳备份、幂等原位更新、其他配置型 hook 检测警告、卸载只删自己的注册且 events 清空后还原 `enabled: false`）；10 项离线测试；完成真实安装与干净环境（无 PATH）argv 冒烟。
 - **v0.3（2026-09-15，M2.5）**：架构从纯规则切换为**模型判定**（两轮访谈确认：纯模型、复用 ZCode provider、Flash+15s、缓存 24h、最小安全网、仅 Bash、双档 prompt、重试 3 次后转人工）。M2 白名单/argGuards/复合命令逐段分析/重定向护栏退出判定路径；deny 正则降级为安全网；新增 §6 模型判定、缓存、judge 审计字段、T8–T10 威胁；rules.json v2；测试套件重写（111 项）并完成真实 API 冒烟。详见 ADR-0007/0008。

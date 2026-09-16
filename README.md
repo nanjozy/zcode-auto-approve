@@ -4,7 +4,7 @@
 
 架构一句话：`src/approve.mjs`（Node 单文件，零依赖）按「机械层 → deny 安全网 → 判定缓存 → 模型判定」的固定顺序求值——**模型是唯一判断者，但不是最后一步**；每次判定（含模型理由）写入 JSONL 审计日志。完整设计见 [docs/design.md](docs/design.md)。
 
-> **当前状态**：v0.3 已实现并**已安装到 `~/.zcode/cli/config.json`**（2026-09-15）——测试全绿（`node --test`）、真实 API 冒烟、干净环境（无 PATH）冒烟均通过；路线图见 [design.md §12](docs/design.md#12-里程碑)。**重启 ZCode 客户端后生效**，安装后验收步骤见 [design.md §10.2](docs/design.md#102-真机验收m3)。
+> **当前状态**：v0.4 已实现并**已安装**（hook 运行时优先用 ZCode.exe 内嵌 node，见 [ADR-0009](docs/adr/0009-hook-runtime-zcode-exe.md)）——测试全绿（`node --test`）、真实 API 冒烟、干净环境（无 PATH）冒烟均通过；路线图见 [design.md §12](docs/design.md#12-里程碑)。**重启 ZCode 客户端后生效**，安装后验收步骤见 [design.md §10.2](docs/design.md#102-真机验收m3)。
 
 ## 文档索引
 
@@ -33,6 +33,8 @@
 
 ```bash
 # 1. 安装：把 hook 注册进 ~/.zcode/cli/config.json（自动备份原配置；重复执行为原位更新）
+#    运行时自动选择（ADR-0009）：优先 ZCode.exe 内嵌 node（ELECTRON_RUN_AS_NODE），
+#    不可用则回退本机 node 绝对路径；ZAA_NODE_SOURCE=node 可强制回退
 node scripts/install.mjs
 
 # 2. 重启 ZCode 客户端，之后安全的指令将不再弹审批窗
