@@ -2,7 +2,7 @@
 
 给 ZCode 配置的**全局（用户级）auto-approve hook**：在权限审批（`PermissionRequest`）弹窗之前，由 **GLM-5.3-Flash 模型对命令做语义级安全判定**，安全则自动放行，不安全则照常走人工审批。目标是在不牺牲安全底线的前提下，大幅减少重复的审批弹窗。
 
-> **当前状态**：v0.3 模型判定架构已实现——111 项单元测试全绿 + 真实 API 冒烟通过（模型放行 / ask / 缓存命中 / 安全网拦截均验证）。M3（安装脚本 + 真机验收）待做，见[路线图](#路线图)。
+> **当前状态**：v0.3 模型判定架构已实现并**已安装到 `~/.zcode/cli/config.json`**（2026-09-15）——121 项测试全绿、真实 API 冒烟、干净环境（无 PATH）冒烟均通过。**重启 ZCode 客户端后生效**，验收步骤见[快速开始](#快速开始)。
 
 ## 工作原理（一图流）
 
@@ -59,8 +59,10 @@ zcode-auto-approve/
 ├── rules.json              # v2：档位/安全网正则/机械白名单/judge 参数
 ├── src/
 │   └── approve.mjs         # hook 脚本（模型管线 + 安全网 + 缓存 + 审计，零依赖）
-├── test/                   # node --test 单元测试（111 项，全部 mock 绝不触网）
-└── scripts/                # install.mjs / uninstall.mjs（M3）
+├── scripts/
+│   ├── install.mjs         # 安装器（备份、幂等、其他 hook 警告）
+│   └── uninstall.mjs       # 卸载器（只删自己的注册）
+└── test/                   # node --test 单元测试（121 项，全部 mock 绝不触网）
 ```
 
 ## 本地验证
@@ -80,19 +82,39 @@ echo '{"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"c
 tail ~/.zcode/zcode-auto-approve/audit/audit-$(date +%F).jsonl
 ```
 
-## 快速开始（M3 完成后可用）
+## 快速开始
 
 ```bash
-node scripts/install.mjs     # 写入 ~/.zcode/cli/config.json（自动备份），重启 ZCode 生效
-node scripts/uninstall.mjs   # 卸载
+# 1. 安装：把 hook 注册进 ~/.zcode/cli/config.json（自动备份原配置；重复执行为原位更新）
+node scripts/install.mjs
+
+# 2. 重启 ZCode 客户端，之后安全的指令将不再弹审批窗
+
+# 3. 查看审计日志（每次判定一行，含模型理由与耗时）
+tail ~/.zcode/zcode-auto-approve/audit/audit-$(date +%F).jsonl
+
+# 4. 卸载
+node scripts/uninstall.mjs
 ```
+
+### 安装后验收清单（design.md §10.2）
+
+| 步骤 | 预期 |
+|---|---|
+| 让模型跑 `cd sub && npm test` 这类命令 | 无弹窗；审计出现 `matchedRule: "model"` 与模型理由 |
+| 同一命令再跑一次 | 无弹窗；审计 `matchedRule: "judge-cache"`，latencyMs≈0 |
+| `rm -rf /tmp/x` | 弹窗照常，reasonCode=`deny-pattern`（不调模型） |
+| riskLevel=critical 的命令 | 弹窗，reasonCode=`risk-level` |
+| 改错 `ZAA_API_KEY` 或断网 | 重试 4 次后弹窗，reasonCode=`model-error` |
+
+注意：升级/切换 node 版本（fnm）后需重跑 `node scripts/install.mjs` 刷新注册的 node 绝对路径。
 
 ## 路线图
 
 - [x] **M1** 项目初始化、设计文档、ADR、术语表
-- [x] **M2** 纯规则引擎 + 111 项测试（后被 v0.3 取代判定职责，护栏保留）
-- [x] **M2.5** 模型判定架构 v0.3：模型管线、安全网、缓存、重试、测试重写、真实 API 冒烟
-- [ ] **M3** 安装/卸载脚本 + 真机验证
+- [x] **M2** 纯规则引擎 + 测试（后被 v0.3 取代判定职责，护栏保留）
+- [x] **M2.5** 模型判定架构 v0.3：模型管线、安全网、缓存、重试、真实 API 冒烟
+- [x] **M3** 安装/卸载脚本（121 项测试）+ 真实安装完成；**真机验收待重启 ZCode 后执行**
 - [ ] **M4**（远期）`permissionUpdates` 规则注入、按 workspace 覆盖、可选 deny 模式
 
 ## 安全边界（务必阅读）

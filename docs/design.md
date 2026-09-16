@@ -304,13 +304,14 @@ reasonCode 枚举：`deny-pattern` | `risk-level` | `deny-tool` | `workspace-dis
 | M1 | 项目初始化、设计文档 v0.1、ADR×6、术语表 | ✅ 2026-09-15 |
 | M2 | 纯规则引擎 + 111 项测试 | ✅ 2026-09-15（commit d04b2fd） |
 | M2.5 | **模型判定架构 v0.3**：模型管线、安全网、缓存、重试、测试重写、真实 API 冒烟 | ✅ 2026-09-15 |
-| M3 | `scripts/install.mjs` / `uninstall.mjs`（timeoutMs 30000）+ §10.2 真机验收 | 待做 |
+| M3 | `scripts/install.mjs` / `uninstall.mjs`（备份/幂等/他人注册保护，10 项离线测试）+ 真实安装完成；**真机验收（§10.2）待用户重启 ZCode 后执行** | ✅ 2026-09-15（安装部分） |
 | M4 | `permissionUpdates` 持久规则注入、workspace 级覆盖、可选 deny 模式 | 远期 |
 
 ---
 
 ## 13. 变更记录
 
+- **v0.3.1（2026-09-15，M3 安装器）**：交付 `scripts/install.mjs` / `uninstall.mjs`（§9 落地：node 绝对路径、时间戳备份、幂等原位更新、其他配置型 hook 检测警告、卸载只删自己的注册且 events 清空后还原 `enabled: false`）；10 项离线测试；完成真实安装与干净环境（无 PATH）argv 冒烟。
 - **v0.3（2026-09-15，M2.5）**：架构从纯规则切换为**模型判定**（两轮访谈确认：纯模型、复用 ZCode provider、Flash+15s、缓存 24h、最小安全网、仅 Bash、双档 prompt、重试 3 次后转人工）。M2 白名单/argGuards/复合命令逐段分析/重定向护栏退出判定路径；deny 正则降级为安全网；新增 §6 模型判定、缓存、judge 审计字段、T8–T10 威胁；rules.json v2；测试套件重写（111 项）并完成真实 API 冒烟。详见 ADR-0007/0008。
 - **v0.2（2026-09-15，M2）**：纯规则实现与安全修订（见 git 历史与 ADR-0003 修订记录）。
 - **v0.1（2026-09-15，M1）**：初稿。
