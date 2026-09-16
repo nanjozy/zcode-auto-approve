@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // zcode-auto-approve 卸载器：从 ZCode 用户级配置中移除本项目的 hook 注册。
-// 设计：docs/design.md §9.2——只删自己的注册项；events 清空后把 hooks.enabled
+// 设计：docs/design.md §9——只删自己的注册项；events 清空后把 hooks.enabled
 // 还原为 false 并打印说明（若你安装前就有其他 hook 且 enabled 本为 true，
 // 请自行改回或用安装备份恢复）。
 
@@ -51,7 +51,7 @@ export function doUninstall(options = {}) {
     delete hooks.events.PermissionRequest;
     if (Object.keys(hooks.events).length === 0) {
       delete hooks.events;
-      hooks.enabled = false; // design §9.2：无任何事件时还原总开关
+      hooks.enabled = false; // design §9：无任何事件时还原总开关
       restoredEnabled = true;
     }
   } else {

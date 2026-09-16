@@ -1,6 +1,6 @@
 # 术语表
 
-本项目文档统一使用以下术语。首字母大写的标识符（如 `PermissionRequest`）是 ZCode 的专有名称，必须原样使用。标注 **(M2)** 的条目描述已退出判定路径的历史机制，保留供阅读旧文档与 ADR 使用。
+本项目文档统一使用以下术语。首字母大写的标识符（如 `PermissionRequest`）是 ZCode 的专有名称，必须原样使用。
 
 ## ZCode 侧
 
@@ -44,12 +44,3 @@
 | **mock judge** | 测试注入的假判定器（`deps.judge`），使全部单元测试绝不触网。 |
 | **ADR** | Architecture Decision Record。位于 `docs/adr/`，一条决策一个文件。 |
 
-## M2 历史术语（已退出判定路径）
-
-| 术语 | 含义 |
-|---|---|
-| **白名单（allowlist）(M2)** | 曾按 bashGroups 命令规格放行；v0.3 起仅剩非 Bash 只读工具白名单。 |
-| **参数守卫（argGuards）(M2)** | 曾拦截 `node -e`/`find -exec` 等 flag；v0.3 起由模型语义 + deny 正则承担。 |
-| **目标路径守卫（destGuard）(M2)** | 曾约束 cp/mv 目标；同上。 |
-| **复合命令逐段判定 (M2)** | 曾要求每段都过白名单；v0.3 起分词器仅用于安全网的分段 deny 匹配。 |
-| **不可静态分析结构 (M2)** | `$(...)`/反引号/heredoc 等曾直接直通；v0.3 起交由模型判断（deny 正则兜底 `eval`/`base64 -d` 等）。 |

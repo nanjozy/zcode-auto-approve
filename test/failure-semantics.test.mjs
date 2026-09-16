@@ -1,4 +1,4 @@
-// 失败语义（design.md §7.2 v0.3）：一切未知路径收敛到直通，approve 只在显式通过时输出
+// 失败语义（design.md §7 v0.3）：一切未知路径收敛到直通，approve 只在显式通过时输出
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readdirSync, readFileSync } from 'node:fs';

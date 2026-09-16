@@ -21,4 +21,4 @@ hook 脚本需要：读 stdin JSON、字符串/正则密集的规则匹配、跨
 ## 后果
 
 - 正面：`type: "process"` 完全绕开 shell，Windows 上最稳；零依赖意味着 `node --test` 之外不需要任何安装步骤。
-- 负面：注册项里的 node 绝对路径在用户升级 node 版本（fnm 切换）后会失效——症状是 hook 报找不到命令，重跑 install 即修复；设计文档 §9.1 已注明。
+- 负面：注册项里的 node 绝对路径在用户升级 node 版本（fnm 切换）后会失效——症状是 hook 报找不到命令，重跑 install 即修复；设计文档 §9 已注明。

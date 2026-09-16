@@ -1,4 +1,4 @@
-// 分词器黄金用例：引号、转义、顶层操作符、重定向、注释（design.md §6.1）
+// 分词器黄金用例：引号、转义、顶层操作符、重定向、注释（安全网分段 deny 匹配依赖，见 design.md §5.1）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tokenize, splitSegments } from '../src/approve.mjs';

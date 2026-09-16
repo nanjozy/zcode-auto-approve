@@ -10,7 +10,7 @@
 ## 决策
 
 1. 脚本只有两种输出：`{"decision":"approve"}`（exit 0）或**空 stdout**（exit 0）。**永不输出 deny、永不 exit 2。**
-2. 一切未命中、不确定、解析失败、规则文件损坏的路径都收敛到空输出直通（失败语义总表见 design.md §7.2）。
+2. 一切未命中、不确定、解析失败、规则文件损坏的路径都收敛到空输出直通（失败语义总表见 design.md §7）。
 3. 监听 `PermissionRequest` 而非 `PreToolUse`：deny 语义对两者分别表现为拒绝审批与阻断执行，本项目不做拦截，选更贴近审批场景的 `PermissionRequest`。
 
 ## 理由
